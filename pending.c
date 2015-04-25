@@ -34,9 +34,62 @@ int pending_add(char *number, char *message) {
 	int value;
 	
 	sqlquery = sqlite3_mprintf(
-		"INSERT INTO pending (number, message, sent) "
-		"VALUES ('%q', '%q', 0)",
+		"INSERT INTO pending (number, message, added) "
+		"VALUES ('%q', '%q', datetime('now'))",
 		number, message
+	);
+	
+	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
+		fprintf(stderr, "[-] cannot insert data\n");
+	
+	sqlite3_free(sqlquery);
+	
+	return value;
+}
+
+int pending_commit(int id) {
+	char *sqlquery;
+	int value;
+	
+	sqlquery = sqlite3_mprintf(
+		"UPDATE pending SET sent = 1, departure = datetime('now') "
+		"WHERE id = %d",
+		id
+	);
+	
+	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
+		fprintf(stderr, "[-] cannot update data\n");
+	
+	sqlite3_free(sqlquery);
+	
+	return value;
+}
+
+int message_add(char *number, char *message) {
+	char *sqlquery;
+	int value;
+	
+	sqlquery = sqlite3_mprintf(
+		"INSERT INTO messages (number, message, received, read) "
+		"VALUES ('%q', '%q', datetime('now'), 0)",
+		number, message
+	);
+	
+	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
+		fprintf(stderr, "[-] cannot insert data\n");
+	
+	sqlite3_free(sqlquery);
+	
+	return value;
+}
+
+int failed_add(char *pdu) {
+	char *sqlquery;
+	int value;
+	
+	sqlquery = sqlite3_mprintf(
+		"INSERT INTO failed (pdu) VALUES ('%q')",
+		pdu
 	);
 	
 	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
@@ -49,13 +102,13 @@ int pending_add(char *number, char *message) {
 
 void pending_check() {
 	sqlite3_stmt *stmt;
-	char *sqlquery, sqlquery2[1024];
+	char *sqlquery;
 	char *number = NULL, *message;
 	char *rnumber;
 	int id, type;
 	
 	sqlquery = "SELECT number, message, id, type "
-	           "FROM pending WHERE sent = 0";
+	           "FROM pending WHERE sent = 0 LIMIT 1";
 	
 	if((stmt = db_sqlite_select_query(sqlite_db, sqlquery))) {
 		if(sqlite3_step(stmt) == SQLITE_ROW) {
@@ -76,8 +129,11 @@ void pending_check() {
 
 	sqlite3_finalize(stmt);
 	
-	if(number) {
-		sprintf(sqlquery2, "UPDATE pending SET sent = %d WHERE id = %d", type, id);
-		db_sqlite_simple_query(sqlite_db, sqlquery2);	
-	}
+	if(number)
+		pending_commit(id);
+}
+
+int unread_check() {
+	writefd("AT+CMGL=1");
+	return checkok();
 }

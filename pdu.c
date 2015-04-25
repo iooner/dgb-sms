@@ -213,11 +213,20 @@ int pdu_decode(const unsigned char* buffer, int buffer_length,
 		return -1;
 
 	const int sms_deliver_start = 1 + buffer[0];
-	if (sms_deliver_start + 1 > buffer_length) return -1;
-	if ((buffer[sms_deliver_start] & SMS_DELIVER_ONE_MESSAGE) != SMS_DELIVER_ONE_MESSAGE) return -1;
-
+	
+	if(sms_deliver_start + 1 > buffer_length)
+		return -1;
+	
+	/*
+	-- FIXME --
+	
+	if((buffer[sms_deliver_start] & SMS_DELIVER_ONE_MESSAGE) != SMS_DELIVER_ONE_MESSAGE)
+		return -1;
+	*/
+	
 	const int sender_number_length = buffer[sms_deliver_start + 1];
-	if (sender_number_length + 1 > sender_phone_number_size) return -1;  // Buffer too small to hold decoded phone number.
+	if (sender_number_length + 1 > sender_phone_number_size)
+		return -1;  // Buffer too small to hold decoded phone number.
 
 	// const int sender_type_of_address = buffer[sms_deliver_start + 2];  
 	DecodePhoneNumber(buffer + sms_deliver_start + 3, sender_number_length,  output_sender_phone_number);

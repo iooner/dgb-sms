@@ -145,6 +145,7 @@ char *readfd(char *buffer, size_t length, int timeout) {
 			
 		} else {
 			pending_check();
+			unread_check();
 			continue;
 		}
 		
