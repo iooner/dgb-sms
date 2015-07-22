@@ -22,12 +22,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include "pdu.h"
 #include "serial_at.h"
 #include "serial_status.h"
 #include "serial_parser.h"
 #include "serial.h"
 #include "database.h"
-#include "pdu.h"
 
 int pending_add(char *number, char *message) {
 	char *sqlquery;
@@ -38,6 +38,20 @@ int pending_add(char *number, char *message) {
 		"VALUES ('%q', '%q', datetime('now'))",
 		number, message
 	);
+	
+	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
+		fprintf(stderr, "[-] cannot insert data\n");
+	
+	sqlite3_free(sqlquery);
+	
+	return value;
+}
+
+int pdu_add(char *pdu) {
+	char *sqlquery;
+	int value;
+	
+	sqlquery = sqlite3_mprintf("INSERT INTO raw (arrived, pdu) VALUES (datetime('now'), '%s')", pdu);
 	
 	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
 		fprintf(stderr, "[-] cannot insert data\n");
@@ -59,6 +73,25 @@ int pending_commit(int id) {
 	
 	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
 		fprintf(stderr, "[-] cannot update data\n");
+	
+	sqlite3_free(sqlquery);
+	
+	return value;
+}
+
+int segment_add(pdu_t *pdu) {
+	char *sqlquery;
+	int value;
+	
+	sqlquery = sqlite3_mprintf(
+		"INSERT INTO segments (number, message, received, partid, part, total) "
+		"VALUES ('%s', '%q', datetime('now'), %d, %d, %d)",
+		pdu->number, pdu->message,
+		pdu->multipart.id, pdu->multipart.current, pdu->multipart.total
+	);
+	
+	if(!(value = db_sqlite_simple_query(sqlite_db, sqlquery)))
+		fprintf(stderr, "[-] cannot insert data\n");
 	
 	sqlite3_free(sqlquery);
 	
@@ -134,6 +167,6 @@ void pending_check() {
 }
 
 int unread_check() {
-	writefd("AT+CMGL=1");
+	at_cmgl("1");
 	return checkok();
 }

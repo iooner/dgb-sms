@@ -28,8 +28,8 @@
 #include "serial_parser.h"
 #include "serial_at.h"
 #include "serial.h"
-#include "pending.h"
 #include "pdu.h"
+#include "pending.h"
 
 int csq_current = 0;
 int x = 0;
@@ -63,12 +63,16 @@ int handler_notify(char *buffer) {
 }
 
 int handler_inbox(char *buffer) {
-	char newread[1024];
+	char newread[1024], *pdu;
 	int index;
 	(void) buffer;
 	
 	// read pdu, but ignore it and request to read the message
 	readfd(newread, sizeof(newread), 0);
+	pdu = strcleaner(strdup(newread));
+	
+	printf("[+] saving raw pdu\n");
+	pdu_add(pdu);
 	
 	// jump to message id directly
 	index = atoi(buffer + 7);
@@ -82,23 +86,30 @@ int handler_inbox(char *buffer) {
 }
 
 int handler_sms_content(char *buffer) {
-	char *phone, *pdu, *message, newread[1024];
+	char *pdu, newread[1024];
+	pdu_t *data;
 	(void) buffer;
 
 	// grab message
 	// FIXME
 	readfd(newread, sizeof(newread), 0);
 	pdu = strcleaner(strdup(newread));
+	
+	printf("[+] saving raw pdu\n");
+	pdu_add(pdu);
 
-	if(!pdu_receive(pdu, &message, &phone)) {
+	if(!(data = pdu_receive(pdu))) {
 		fprintf(stderr, "[-] cannot decode sms pdu\n");
 		failed_add(pdu);
 		return 0;
 	}
 	
-	printf("[+] message from <%s>: <%s>\n", phone, message);
+	printf("[+] message from <%s>: <%s>\n", data->number, data->message);
 	
-	message_add(phone, message);
+	segment_add(data);
+	
+	// FIXME: free ...
+	free(data);
 	
 	// deleting (all read) messages
 	at_cmgd(0, 1);
@@ -119,7 +130,7 @@ int parse(char *buffer) {
 	//
 	// when successful message arrives
 	//
-	if(*buffer == '+') {		
+	if(*buffer == '+') {
 		if(!strncmp(buffer, "+CMTI:", 6)) {
 			printf("[+] parser: we got a new message\n");
 			return handler_notify(buffer);
